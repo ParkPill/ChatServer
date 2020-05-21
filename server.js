@@ -61,7 +61,7 @@ wsServer.on('request', function(request) {
                 chatRooms[roomName].push(connection);
                 chatCode = '0';
                 console.log(connection.userName + " join");
-                console.log("total user count in room: " + chatRooms[roomName].length);
+                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
             }else if(msg.substring(0, 1) == '1'){ // msg
                 chatCode = '1';
                 //console.log(connection.userName + " msg:" + msgContent);
