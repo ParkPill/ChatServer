@@ -35,14 +35,14 @@ wsServer.on('request', function(request) {
     if (!originIsAllowed(request.origin)) {
       // Make sure we only accept requests from an allowed origin
       request.reject();
-      console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+      //console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
       return;
     }
-    console.log("request.origin: " + request.origin);
+    //console.log("request.origin: " + request.origin);
     
     var connection = request.accept('echo-protocol', request.origin);
-    console.log((new Date()) + ' Connection accepted.');
-    console.dir(connection);
+    //console.log((new Date()) + ' Connection accepted.');
+    //console.dir(connection);
     connection.on('message', function(message) {
         if (message.type === 'utf8') {
             console.log('Received Message: ' + message.utf8Data);
@@ -60,14 +60,14 @@ wsServer.on('request', function(request) {
                 connection.userName = msgContent;
                 chatRooms[roomName].push(connection);
                 chatCode = '0';
-                console.log(connection.userName + " join");
+                //console.log(connection.userName + " join");
             }else if(msg.substring(0, 1) == '1'){ // msg
                 chatCode = '1';
-                console.log(connection.userName + " msg:" + msgContent);
+                //console.log(connection.userName + " msg:" + msgContent);
                 msgContent = connection.userName + ':' + msgContent;
             }else if(msg.substring(0, 1) == '2'){ // quit
                 chatCode = '2';
-                console.log(connection.userName + " quit");
+                //console.log(connection.userName + " quit");
                 connection.close();
             }
             
@@ -76,8 +76,6 @@ wsServer.on('request', function(request) {
             function myFunction(peer) {
                 peer.sendUTF(chatCode + msgContent);
             }
-            console.log("chatRooms: " + chatRooms.length);
-            console.log("chatRooms " + roomName + " : " + chatRooms[roomName].length);
         }
         else if (message.type === 'binary') {
             console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
@@ -85,14 +83,14 @@ wsServer.on('request', function(request) {
         }
     });
     connection.on('close', function(reasonCode, description) {
-        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+        //console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
         chatRooms[connection.roomName].forEach(myFunction);
         function myFunction(peer) {
             peer.sendUTF('2' + connection.userName);
         }
         if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
-            console.log("chatRooms " + connection.roomName + " : " + chatRooms[connection.roomName].length);
+            //console.log("chatRooms " + connection.roomName + " : " + chatRooms[connection.roomName].length);
             if (index > -1) {
                 chatRooms[connection.roomName].splice(index, 1);
             }
