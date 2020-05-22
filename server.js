@@ -56,8 +56,9 @@ wsServer.on('request', function(request) {
             var chatCode = 0; // 0-join, 1-msg, 2-quit
             var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
             if(msg.substring(0, 1) == '0'){ // join or create
-                if(chatRooms.indexOf(roomName) < 0){
+                if(chatRooms[roomName] !== undefined){
                     chatRooms[roomName] = [];
+                    console.log("create room: " + roomName);
                 }
                 connection.roomName = roomName;
                 
@@ -98,6 +99,7 @@ wsServer.on('request', function(request) {
         
 //        if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
+            console.log("peer index in chatRoom " + index);
             console.log("chatRoom " + connection.roomName + " users left : " + chatRooms[connection.roomName].length);
             
             if (index > -1) {
