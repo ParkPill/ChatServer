@@ -56,7 +56,7 @@ wsServer.on('request', function(request) {
             var chatCode = 0; // 0-join, 1-msg, 2-quit
             var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
             if(msg.substring(0, 1) == '0'){ // join or create
-                if(chatRooms[roomName] !== undefined){
+                if(chatRooms[roomName] === undefined){
                     chatRooms[roomName] = [];
                     console.log("create room: " + roomName);
                 }
