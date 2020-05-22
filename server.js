@@ -50,23 +50,23 @@ wsServer.on('request', function(request) {
             console.log('Received Message: ' + msg);
             var msgBroadcast = '';
             var underBarIndex = msg.indexOf('_');
-            console.log("underbar index: " + underBarIndex);
+//            console.log("underbar index: " + underBarIndex);
             var roomName = msg.substring(1, underBarIndex);
-            console.log("room name: " + roomName);
+//            console.log("room name: " + roomName);
             var chatCode = 0; // 0-join, 1-msg, 2-quit
             var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
             if(msg.substring(0, 1) == '0'){ // join or create
                 if(chatRooms[roomName] === undefined){
                     chatRooms[roomName] = [];
-                    console.log("create room: " + roomName);
+//                    console.log("create room: " + roomName);
                 }
                 connection.roomName = roomName;
                 
                 connection.userName = msgContent;
                 chatRooms[roomName].push(connection);
                 chatCode = '0';
-                console.log(connection.userName + " join");
-                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
+//                console.log(connection.userName + " join");
+//                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
             }else if(msg.substring(0, 1) == '1'){ // msg
                 chatCode = '1';
                 //console.log(connection.userName + " msg:" + msgContent);
@@ -76,12 +76,12 @@ wsServer.on('request', function(request) {
                 //console.log(connection.userName + " quit");
                 connection.close();
             }
-            console.log("connection.roomName: " + connection.roomName);
+//            console.log("connection.roomName: " + connection.roomName);
             chatRooms[roomName].forEach(myFunction);
-            console.log("peers: " + chatRooms[roomName].length);
+//            console.log("peers: " + chatRooms[roomName].length);
 
             function myFunction(peer) {
-                console.log("send message to peer: " + peer.userName);
+//                console.log("send message to peer: " + peer.userName);
                 peer.sendUTF(chatCode + msgContent);
             }
         }
