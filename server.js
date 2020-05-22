@@ -45,11 +45,14 @@ wsServer.on('request', function(request) {
     //console.dir(connection);
     connection.on('message', function(message) {
         if (message.type === 'utf8') {
-            console.log('Received Message: ' + message.utf8Data);
+            
             var msg = message.utf8Data;
+            console.log('Received Message: ' + msg);
             var msgBroadcast = '';
             var underBarIndex = msg.indexOf('_');
-            var roomName = msg.substring(1, underBarIndex - 1);
+            console.log("underbar index: " + underBarIndex);
+            var roomName = msg.substring(1, underBarIndex);
+            console.log("room name: " + roomName);
             var chatCode = 0; // 0-join, 1-msg, 2-quit
             var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
             if(msg.substring(0, 1) == '0'){ // join or create
@@ -57,6 +60,7 @@ wsServer.on('request', function(request) {
                     chatRooms[roomName] = [];
                 }
                 connection.roomName = roomName;
+                
                 connection.userName = msgContent;
                 chatRooms[roomName].push(connection);
                 chatCode = '0';
@@ -71,7 +75,7 @@ wsServer.on('request', function(request) {
                 //console.log(connection.userName + " quit");
                 connection.close();
             }
-            
+            console.log("connection.roomName: " + connection.roomName);
             chatRooms[roomName].forEach(myFunction);
             console.log("peers: " + chatRooms[roomName].length);
 
@@ -86,20 +90,22 @@ wsServer.on('request', function(request) {
         }
     });
     connection.on('close', function(reasonCode, description) {
-        //console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected from ' + connection.roomName);
         chatRooms[connection.roomName].forEach(myFunction);
         function myFunction(peer) {
             peer.sendUTF('2' + connection.userName);
         }
-        if(chatRooms.indexOf(connection.roomName) >= 0){
+        
+//        if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
             console.log("chatRoom " + connection.roomName + " users left : " + chatRooms[connection.roomName].length);
             
             if (index > -1) {
                 chatRooms[connection.roomName].splice(index, 1);
             }
-        }
+//        }
         
+        console.log("disconnected total user count in room " + connection.roomName + "/ left count: " + chatRooms[connection.roomName].length);
         
     });
 });
