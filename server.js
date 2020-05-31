@@ -77,6 +77,7 @@ wsServer.on('request', function(request) {
                 connection.close();
             }
             console.log("roomName: " + roomName + "/connection: " + connection);
+            console.log("connection.roomName: " + connection.roomName);
             if(typeof connection !== 'undefined' && typeof roomName !== 'undefined' && chatRooms.hasOwnProperty(roomName)){
                 chatRooms[roomName].forEach(myFunction);
             }
@@ -95,7 +96,12 @@ wsServer.on('request', function(request) {
     });
     connection.on('close', function(reasonCode, description) {
         console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected from ' + connection.roomName);
-        chatRooms[connection.roomName].forEach(myFunction);
+        
+        if(typeof connection !== 'undefined' && typeof connection.roomName !== 'undefined' && chatRooms.hasOwnProperty(connection.roomName)){
+                chatRooms[connection.roomName].forEach(myFunction);
+            }
+        
+        
         function myFunction(peer) {
             peer.sendUTF('2' + connection.userName);
         }
