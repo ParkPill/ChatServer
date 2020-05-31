@@ -77,7 +77,7 @@ wsServer.on('request', function(request) {
                 connection.close();
             }
             console.log("connection.roomName: " + connection.roomName);
-            if(chatRooms.hasOwnProperty(roomName)){
+            if(typeof roomName !== 'undefined' && chatRooms.hasOwnProperty(roomName)){
                 chatRooms[roomName].forEach(myFunction);
             }
             
