@@ -76,8 +76,11 @@ wsServer.on('request', function(request) {
                 //console.log(connection.userName + " quit");
                 connection.close();
             }
-//            console.log("connection.roomName: " + connection.roomName);
-            chatRooms[roomName].forEach(myFunction);
+            console.log("connection.roomName: " + connection.roomName);
+            if(chatRooms.hasOwnProperty(roomName)){
+                chatRooms[roomName].forEach(myFunction);
+            }
+            
 //            console.log("peers: " + chatRooms[roomName].length);
 
             function myFunction(peer) {
