@@ -99,12 +99,11 @@ wsServer.on('request', function(request) {
         
         if(typeof connection !== 'undefined' && typeof connection.roomName !== 'undefined' && chatRooms.hasOwnProperty(connection.roomName)){
                 chatRooms[connection.roomName].forEach(myFunction);
+            
+        
+            function myFunction(peer) {
+                peer.sendUTF('2' + connection.userName);
             }
-        
-        
-        function myFunction(peer) {
-            peer.sendUTF('2' + connection.userName);
-        }
         
 //        if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
@@ -116,7 +115,11 @@ wsServer.on('request', function(request) {
             }
 //        }
         
-        console.log("disconnected total user count in room " + connection.roomName + "/ left count: " + chatRooms[connection.roomName].length);
+            console.log("disconnected total user count in room " + connection.roomName + "/ left count: " + chatRooms[connection.roomName].length);
+
+
+        }
+        
         
     });
 });
