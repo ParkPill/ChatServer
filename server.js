@@ -113,9 +113,9 @@ wsServer.on('request', function(request) {
                 peer.sendUTF('2' + connection.userName);
             }
         
-            chatHistory[roomName].push('2' + connection.userName);
-            if(chatHistory[roomName].length > 50){
-                chatHistory[roomName].shift();
+            chatHistory[connection.roomName].push('2' + connection.userName);
+            if(chatHistory[connection.roomName].length > 50){
+                chatHistory[connection.roomName].shift();
             }
             
 //        if(chatRooms.indexOf(connection.roomName) >= 0){
