@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 var WebSocketServer = require('websocket').server;
 var http = require('http');
-var chatRooms = [];
+
 
 var server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);
@@ -27,6 +27,7 @@ function originIsAllowed(origin) {
   return true;
 }
 var chatRooms = [];
+var chatHistory = [];
 // code
 // 0 join or create
 // 1 msg
@@ -58,6 +59,7 @@ wsServer.on('request', function(request) {
             if(msg.substring(0, 1) == '0'){ // join or create
                 if(chatRooms[roomName] === undefined){
                     chatRooms[roomName] = [];
+                    chatHistory[roomName] = [];
 //                    console.log("create room: " + roomName);
                 }
                 connection.roomName = roomName;
@@ -65,6 +67,9 @@ wsServer.on('request', function(request) {
                 connection.userName = msgContent;
                 chatRooms[roomName].push(connection);
                 chatCode = '0';
+                for (var i = 0; i < chatHistory[roomName].length; i++){
+                    connection.sendUTF(chatHistory[roomName][i]);
+                }
 //                console.log(connection.userName + " join");
 //                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
             }else if(msg.substring(0, 1) == '1'){ // msg
@@ -81,7 +86,10 @@ wsServer.on('request', function(request) {
             if(typeof connection !== 'undefined' && typeof roomName !== 'undefined' && chatRooms.hasOwnProperty(roomName)){
                 chatRooms[roomName].forEach(myFunction);
             }
-            
+            chatHistory[roomName].push(chatCode + msgContent);
+            if(chatHistory[roomName].length > 50){
+                chatHistory[roomName].shift();
+            }
 //            console.log("peers: " + chatRooms[roomName].length);
 
             function myFunction(peer) {
