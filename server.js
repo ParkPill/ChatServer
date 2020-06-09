@@ -113,6 +113,11 @@ wsServer.on('request', function(request) {
                 peer.sendUTF('2' + connection.userName);
             }
         
+            chatHistory[roomName].push('2' + connection.userName);
+            if(chatHistory[roomName].length > 50){
+                chatHistory[roomName].shift();
+            }
+            
 //        if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
             console.log("peer index in chatRoom " + index);
