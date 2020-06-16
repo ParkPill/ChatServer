@@ -56,6 +56,8 @@ wsServer.on('request', function(request) {
 //            console.log("room name: " + roomName);
             var chatCode = 0; // 0-join, 1-msg, 2-quit
             var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
+            
+            var skipHistory = false;
             if(msg.substring(0, 1) == '0'){ // join or create
                 if(chatRooms[roomName] === undefined){
                     chatRooms[roomName] = [];
@@ -72,6 +74,7 @@ wsServer.on('request', function(request) {
                 }
 //                console.log(connection.userName + " join");
 //                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
+                skipHistory = true;
             }else if(msg.substring(0, 1) == '1'){ // msg
                 chatCode = '1';
                 //console.log(connection.userName + " msg:" + msgContent);
@@ -80,15 +83,18 @@ wsServer.on('request', function(request) {
                 chatCode = '2';
                 //console.log(connection.userName + " quit");
                 connection.close();
+                skipHistory = true;
             }
             console.log("roomName: " + roomName + "/connection: " + connection);
             console.log("connection.roomName: " + connection.roomName);
             if(typeof connection !== 'undefined' && typeof roomName !== 'undefined' && chatRooms.hasOwnProperty(roomName)){
                 chatRooms[roomName].forEach(myFunction);
             }
-            chatHistory[roomName].push(chatCode + msgContent);
-            if(chatHistory[roomName].length > 50){
-                chatHistory[roomName].shift();
+            if(!skipHistory){
+                chatHistory[roomName].push(chatCode + msgContent);
+                if(chatHistory[roomName].length > 50){
+                    chatHistory[roomName].shift();
+                }
             }
 //            console.log("peers: " + chatRooms[roomName].length);
 
@@ -113,10 +119,10 @@ wsServer.on('request', function(request) {
                 peer.sendUTF('2' + connection.userName);
             }
         
-            chatHistory[connection.roomName].push('2' + connection.userName);
-            if(chatHistory[connection.roomName].length > 50){
-                chatHistory[connection.roomName].shift();
-            }
+//            chatHistory[connection.roomName].push('2' + connection.userName);
+//            if(chatHistory[connection.roomName].length > 50){
+//                chatHistory[connection.roomName].shift();
+//            }
             
 //        if(chatRooms.indexOf(connection.roomName) >= 0){
             const index = chatRooms[connection.roomName].indexOf(connection);
