@@ -92,7 +92,7 @@ wsServer.on('request', function(request) {
             }
             if(!skipHistory){
                 chatHistory[roomName].push(chatCode + msgContent);
-                if(chatHistory[roomName].length > 50){
+                if(chatHistory[roomName].length > 100){
                     chatHistory[roomName].shift();
                 }
             }
