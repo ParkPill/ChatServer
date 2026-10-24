@@ -8,8 +8,11 @@ var server = http.createServer(function(request, response) {
     response.writeHead(404);
     response.end();
 });
-server.listen(8104, function() {
-    console.log((new Date()) + ' Server is listening on port 8104');
+// nginx 뒤에 둘 때는 PORT/HOST 로 내부 주소를 지정한다. env 가 없으면 기존 동작 그대로.
+var port = process.env.PORT || 8104;
+var host = process.env.HOST || '0.0.0.0';
+server.listen(port, host, function() {
+    console.log((new Date()) + ' Server is listening on ' + host + ':' + port);
 });
 
 wsServer = new WebSocketServer({
@@ -26,12 +29,114 @@ function originIsAllowed(origin) {
   // put logic here to detect whether the specified origin is allowed.
   return true;
 }
-var chatRooms = [];
-var chatHistory = [];
+// Map 을 쓰는 이유: 일반 배열/객체는 'constructor', '__proto__' 같은 방 이름이 기본 속성과 겹쳐 서버가 죽는다.
+var chatRooms = new Map();   // roomName -> [connection]
+var chatHistory = new Map(); // roomName -> [message]
+var roomLastSeen = new Map(); // roomName -> 마지막으로 누군가 방에 있었던 시각(ms)
+
+// 모두 나가도 기록은 남겨 두고, 30일 동안 아무도 들어오지 않은 방만 지운다.
+var ROOM_EXPIRE_MS = 30 * 24 * 60 * 60 * 1000;
+var ROOM_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+function cleanupRooms() {
+    var now = Date.now();
+    roomLastSeen.forEach(function(lastSeen, roomName) {
+        var peers = chatRooms.get(roomName);
+        if (peers !== undefined && peers.length > 0) {
+            return; // 누가 있는 방은 지우지 않는다.
+        }
+        if (now - lastSeen > ROOM_EXPIRE_MS) {
+            chatRooms.delete(roomName);
+            chatHistory.delete(roomName);
+            roomLastSeen.delete(roomName);
+            console.log((new Date()) + ' Expired room: ' + roomName);
+        }
+    });
+}
+setInterval(cleanupRooms, ROOM_CLEANUP_INTERVAL_MS);
 // code
 // 0 join or create
 // 1 msg
 // 2 quit
+
+function broadcast(roomName, data) {
+    var peers = chatRooms.get(roomName);
+    if (peers === undefined) {
+        return;
+    }
+    peers.forEach(function(peer) {
+        if (peer.connected) {
+            peer.sendUTF(data);
+        }
+    });
+}
+
+// 방 목록에서 connection 을 빼고, notify 면 남은 사람들에게 퇴장을 알린다.
+function leaveRoom(connection, notify) {
+    var roomName = connection.roomName;
+    if (roomName === undefined || !chatRooms.has(roomName)) {
+        return;
+    }
+    var peers = chatRooms.get(roomName);
+    var index = peers.indexOf(connection);
+    if (index > -1) {
+        peers.splice(index, 1);
+    }
+    connection.roomName = undefined;
+    roomLastSeen.set(roomName, Date.now());
+    if (notify) {
+        broadcast(roomName, '2' + connection.userName);
+    }
+    console.log("chatRoom " + roomName + " users left : " + peers.length);
+}
+
+function handleMessage(connection, msg) {
+    var chatCode = msg.substring(0, 1); // 0-join, 1-msg, 2-quit
+    var underBarIndex = msg.indexOf('_');
+
+    if (chatCode == '0') { // join or create
+        if (underBarIndex < 1) {
+            return; // 형식이 잘못된 메시지는 무시한다.
+        }
+        var roomName = msg.substring(1, underBarIndex);
+        var userName = msg.substring(underBarIndex + 1);
+
+        // 다시 입장하면 이전 방에서 먼저 뺀다. 같은 방이면 조용히, 다른 방이면 퇴장 알림.
+        leaveRoom(connection, connection.roomName !== roomName);
+
+        if (!chatRooms.has(roomName)) {
+            chatRooms.set(roomName, []);
+        }
+        if (!chatHistory.has(roomName)) {
+            chatHistory.set(roomName, []);
+            console.log("chat history create: " + roomName);
+        }
+        connection.roomName = roomName;
+        connection.userName = userName;
+        roomLastSeen.set(roomName, Date.now());
+        chatRooms.get(roomName).push(connection);
+        chatHistory.get(roomName).forEach(function(history) {
+            connection.sendUTF(history);
+        });
+        broadcast(roomName, '0' + userName);
+    } else if (chatCode == '1') { // msg
+        // 방은 메시지에 적힌 이름이 아니라 입장한 방으로 정한다. 입장 전 메시지는 무시.
+        if (connection.roomName === undefined || underBarIndex < 0) {
+            return;
+        }
+        var data = '1' + connection.userName + ':' + msg.substring(underBarIndex + 1);
+        broadcast(connection.roomName, data);
+        var history = chatHistory.get(connection.roomName);
+        history.push(data);
+        if (history.length > 100) {
+            history.shift();
+        }
+    } else if (chatCode == '2') { // quit
+        // 퇴장 알림은 close 핸들러에서 한 번만 보낸다.
+        connection.close();
+    }
+}
+
 wsServer.on('request', function(request) {
     if (!originIsAllowed(request.origin)) {
       // Make sure we only accept requests from an allowed origin
@@ -46,64 +151,12 @@ wsServer.on('request', function(request) {
     //console.dir(connection);
     connection.on('message', function(message) {
         if (message.type === 'utf8') {
-            
-            var msg = message.utf8Data;
-            console.log('Received Message: ' + msg);
-            var msgBroadcast = '';
-            var underBarIndex = msg.indexOf('_');
-//            console.log("underbar index: " + underBarIndex);
-            var roomName = msg.substring(1, underBarIndex);
-//            console.log("room name: " + roomName);
-            var chatCode = 0; // 0-join, 1-msg, 2-quit
-            var msgContent = msg.substr(underBarIndex+1, msg.length - underBarIndex - 1);
-            
-            var skipHistory = false;
-            if(msg.substring(0, 1) == '0'){ // join or create
-                if(chatRooms[roomName] === undefined){
-                    chatRooms[roomName] = [];
-//                    console.log("create room: " + roomName);
-                }
-                if (chatHistory[roomName] === undefined) {
-                    chatHistory[roomName] = [];
-                    console.log("chat history create: " + roomName);
-                }
-                connection.roomName = roomName;
-                
-                connection.userName = msgContent;
-                chatRooms[roomName].push(connection);
-                chatCode = '0';
-                for (var i = 0; i < chatHistory[roomName].length; i++){
-                    connection.sendUTF(chatHistory[roomName][i]);
-                }
-//                console.log(connection.userName + " join");
-//                console.log("total user count in room " + roomName + ": " + chatRooms[roomName].length);
-                skipHistory = true;
-            }else if(msg.substring(0, 1) == '1'){ // msg
-                chatCode = '1';
-                //console.log(connection.userName + " msg:" + msgContent);
-                msgContent = connection.userName + ':' + msgContent;
-            }else if(msg.substring(0, 1) == '2'){ // quit
-                chatCode = '2';
-                //console.log(connection.userName + " quit");
-                connection.close();
-                skipHistory = true;
-            }
-            console.log("roomName: " + roomName + "/connection: " + connection);
-            console.log("connection.roomName: " + connection.roomName);
-            if(typeof connection !== 'undefined' && typeof roomName !== 'undefined' && chatRooms.hasOwnProperty(roomName)){
-                chatRooms[roomName].forEach(myFunction);
-            }
-            if(!skipHistory){
-                chatHistory[roomName].push(chatCode + msgContent);
-                if(chatHistory[roomName].length > 100){
-                    chatHistory[roomName].shift();
-                }
-            }
-//            console.log("peers: " + chatRooms[roomName].length);
-
-            function myFunction(peer) {
-//                console.log("send message to peer: " + peer.userName);
-                peer.sendUTF(chatCode + msgContent);
+            console.log('Received Message: ' + message.utf8Data);
+            try {
+                handleMessage(connection, message.utf8Data);
+            } catch (e) {
+                // 메시지 하나 때문에 모든 방이 날아가지 않도록 여기서 막는다.
+                console.error((new Date()) + ' Failed to handle message: ' + message.utf8Data, e);
             }
         }
         else if (message.type === 'binary') {
@@ -113,35 +166,6 @@ wsServer.on('request', function(request) {
     });
     connection.on('close', function(reasonCode, description) {
         console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected from ' + connection.roomName);
-        
-        if(typeof connection !== 'undefined' && typeof connection.roomName !== 'undefined' && chatRooms.hasOwnProperty(connection.roomName)){
-                chatRooms[connection.roomName].forEach(myFunction);
-            
-        
-            function myFunction(peer) {
-                peer.sendUTF('2' + connection.userName);
-            }
-        
-//            chatHistory[connection.roomName].push('2' + connection.userName);
-//            if(chatHistory[connection.roomName].length > 50){
-//                chatHistory[connection.roomName].shift();
-//            }
-            
-//        if(chatRooms.indexOf(connection.roomName) >= 0){
-            const index = chatRooms[connection.roomName].indexOf(connection);
-            console.log("peer index in chatRoom " + index);
-            console.log("chatRoom " + connection.roomName + " users left : " + chatRooms[connection.roomName].length);
-            
-            if (index > -1) {
-                chatRooms[connection.roomName].splice(index, 1);
-            }
-//        }
-        
-            console.log("disconnected total user count in room " + connection.roomName + "/ left count: " + chatRooms[connection.roomName].length);
-
-
-        }
-        
-        
+        leaveRoom(connection, true);
     });
 });
