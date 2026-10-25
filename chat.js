@@ -1,6 +1,39 @@
 #!/usr/bin/env node
 var WebSocketServer = require('websocket').server;
 var http = require('http');
+var fs = require('fs');
+var path = require('path');
+var crypto = require('crypto');
+
+// 시크릿 키는 CHAT_SECRET env 가 우선, 없으면 git 에 올라가지 않는 secret.key 파일에서 읽는다.
+// 키가 없으면 아무나 접속할 수 있게 되므로 아예 시작하지 않는다.
+var SECRET_FILE = path.join(__dirname, 'secret.key');
+var secretKey = process.env.CHAT_SECRET;
+if (!secretKey) {
+    try {
+        secretKey = fs.readFileSync(SECRET_FILE, 'utf8').trim();
+    } catch (e) {
+        secretKey = '';
+    }
+}
+if (!secretKey) {
+    console.error('No secret key. Create ' + SECRET_FILE + ' (e.g. `openssl rand -hex 32 > secret.key`) or set CHAT_SECRET.');
+    process.exit(1);
+}
+var secretKeyBuffer = Buffer.from(secretKey, 'utf8');
+
+// 전환 기간: 기존 게임들이 아직 키를 안 보내므로 키 없는 접속은 경고만 남기고 받는다(틀린 키는 거절).
+// 모든 게임이 키를 보내게 되면 true 로 바꾸고 `pm2 restart chat`.
+var REQUIRE_KEY = false;
+
+// 길이가 다르면 바로 false, 같으면 timingSafeEqual 로 비교해 응답 시간으로 키를 추측하지 못하게 한다.
+function isValidKey(key) {
+    if (typeof key !== 'string') {
+        return false;
+    }
+    var keyBuffer = Buffer.from(key, 'utf8');
+    return keyBuffer.length === secretKeyBuffer.length && crypto.timingSafeEqual(keyBuffer, secretKeyBuffer);
+}
 
 
 var server = http.createServer(function(request, response) {
@@ -142,6 +175,15 @@ wsServer.on('request', function(request) {
       // Make sure we only accept requests from an allowed origin
       request.reject();
       //console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+      return;
+    }
+    // 브라우저 WebSocket 은 헤더를 못 붙이므로 키는 접속 URL 의 ?key= 로 받는다.
+    var key = request.resourceURL.query.key;
+    if (key === undefined && !REQUIRE_KEY) {
+      console.warn((new Date()) + ' Connection without key from ' + request.remoteAddress + ' (' + request.httpRequest.headers['user-agent'] + ') allowed during transition');
+    } else if (!isValidKey(key)) {
+      request.reject(401, 'Invalid key');
+      console.log((new Date()) + ' Connection from ' + request.remoteAddress + ' rejected: invalid key');
       return;
     }
     //console.log("request.origin: " + request.origin);
